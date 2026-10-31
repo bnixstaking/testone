@@ -1318,8 +1318,11 @@ setInterval(() => {
 //   避坑(安全): 必须保留**结尾斜杠** —— 去掉后 `prefix.slice(0,-1)` 会截掉域名末字符，
 //   且 `startsWith('https://fiststaking.github.io')` 会被
 //   `https://fiststaking.github.io.evil.com/` 这类**后缀伪装**域名绕过。
+// 2026-11-01: 按要求把 bnixstaking.github.io 重新加入白名单；前缀为根路径 ⇒
+//   该主机下**任意后缀路径**（/fist/、/farm/… ）均放行。
 const ALLOWED_ORIGINS = Object.freeze([
-  'https://fiststaking.github.io/'
+  'https://fiststaking.github.io/',
+  'https://bnixstaking.github.io/'
 ]);
 
 // 本地调试地址：仅环回（localhost / 127.0.0.1，任意端口），与 sw.js 的 localDebugRe 保持一致。
@@ -1349,7 +1352,7 @@ function verifyDomain() {
 //   3. CSP script-src hash     browser-natively protects inline scripts
 //   4. verifyDomain()          origin+path binding (anti-phishing)
 const SW_HASH_PLACEHOLDER = '00000000000000000000000000000000000000000000=';
-const PINNED_SW_HASH = 'a6my38l44BJB5tp8zreNbCUZRfAE2Fk88WXRhxXPwFU=';
+const PINNED_SW_HASH = 'gEXcaEFpHfZp8wRU8rQVs82SS3f+0YgRcunf/dWY5Kc=';
 async function selfIntegrityCheck() {
   try {
     const scripts = document.querySelectorAll('script:not([src])');
@@ -1397,7 +1400,7 @@ async function verifySWHash() {
   return true;
 }
 
-const SW_REGISTER_URL = 'sw.js?v=BNIX-20261027-1';
+const SW_REGISTER_URL = 'sw.js?v=BNIX-20261101-1';
 
 async function registerSecureSW() {
   if (!('serviceWorker' in navigator)) return false;
