@@ -9,11 +9,11 @@
 // ---------- IMMUTABLE POLICY (hard-coded, not config) ----------
 const POLICY = Object.freeze({
   // Whitelisted deployment prefixes (exact path segment matching)
+  // ⚠️ 2026-09-28: 按需求方要求清空历史部署源，仅保留 fiststaking.github.io。
+  //   避坑: 结尾斜杠不可省 —— _matchesPrefix 以 pathname 段级比对，根路径 '/' 表示
+  //   该主机下任意路径放行（与历史 bnixstaking.github.io/ 同口径）。
   CANONICAL_PREFIXES: Object.freeze([
-    'https://bnbclubone.github.io/bnix/',
-    'https://bnbclubone.github.io/bnixclub/',
-    'https://bnbclubone.github.io/cloud/',
-    'https://bnixstaking.github.io/'
+    'https://fiststaking.github.io/'
   ]),
   // If you rebuild index.html, regenerate via:
   //   $ cat index.html | openssl dgst -sha256 -binary | base64
@@ -21,7 +21,14 @@ const POLICY = Object.freeze({
   //   await crypto.subtle.digest('SHA-256', new TextEncoder().encode(htmlText))
   //     .then(b => btoa(String.fromCharCode(...new Uint8Array(b))))
   // Leave empty array to skip HTML hash pinning (only origin enforced).
-  PINNED_HTML_HASHES: Object.freeze(['CgXT36n4N2hCljC9g6nQY9SCsTl7km5d3AcaUD6Kepc=']),
+  // 当前已回填第 ⑪ 代 index.html（核心地址第⑪代正式版 + 空投质押 0x1f4aC8D2…a506〔7 天周期〕
+  // + OSK/FIST 质押 3 倍出局进度条 + 国库 convertFistdaoFeeToOskLp 任何人可调用按钮
+  // 〔滑点固定 1500 bp〕+ 修正 1 FIST/1 OSK 兑换方向倒置 + 刷新频率改 60s
+  // + 各 Tab 均设操作日志框（修复空投 Tab 操作无日志）+ 复投到期/授权前置校验
+  // + 白名单仅保留 fiststaking.github.io，2026-10-02）的 SHA-256
+  // （base64，先剥离 Cloudflare beacon 注入）。
+  // index.html 每次定稿后须重算此值，否则页面会被判为篡改并 403。
+  PINNED_HTML_HASHES: Object.freeze(['P/GBOxDwqNDxM3x6N2MRZS6ygaSWvUtdEmj5C3WXaEw=']),
   // How often to check for SW updates (seconds)
   UPDATE_CHECK_INTERVAL_SEC: 20
 });
@@ -101,13 +108,13 @@ self.addEventListener('fetch', function (ev) {
 
   // Allow local debug origins: skip HTTPS + canonical prefix enforcement
   // so that http://localhost:8770 / http://127.0.0.1:8545 can be served.
-  // NOTE: This bypass also skips HTML hash pinning for local origins, and
-  // applies to every request (not only documents) so sub-app assets under
-  // /farm/ can load during local testing.
-  var localDebugRe = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i;
-  if (localDebugRe.test(url)) {
-    // Let it pass without HTTPS, canonical prefix, or hash checks
-    return;
+  // NOTE: This bypass also skips HTML hash pinning for local origins.
+  if (req.mode === 'navigate' || req.destination === 'document') {
+    var localDebugRe = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/.*)?$/i;
+    if (localDebugRe.test(url)) {
+      // Let it pass without HTTPS, canonical prefix, or hash checks
+      return;
+    }
   }
 
   // Pass through non-GET navigation-less (e.g. CORS preflight, POST RPC).
@@ -147,10 +154,12 @@ self.addEventListener('fetch', function (ev) {
   }
 
   // 2) HTML INTEGRITY PIN (optional, MAIN DOCUMENT ONLY)
-  //    This SW is registered at the site root (scope './'), so it also
-  //    intercepts navigations to same-origin sub-apps such as /farm/.
-  //    Pinning every navigation would 403 any sub-app whose HTML is not
-  //    pinned, so the pin is narrowed to the root document.
+  //    WARNING: this SW is registered at the site root (scope './'), so it also
+  //    intercepts navigations to sub-apps such as /farm/. Pinning every
+  //    navigation would 403 any sub-app whose HTML is not pinned, so the pin is
+  //    narrowed to the root document ( "/" or "/index.html" or "/mainindex.html" ).
+  //    Byte-level note: this block is ASCII-only on purpose -- sw.js contains two
+  //    invalid UTF-8 bytes elsewhere; never rewrite this file through a text editor.
   var isMainDoc = false;
   try {
     var _u = new URL(url);
